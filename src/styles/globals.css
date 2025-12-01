@@ -40,3 +40,9 @@ a {
     color-scheme: dark;
   }
 }
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
