@@ -201,21 +201,25 @@ export default function Home() {
               }
             } catch {}
         }
-        try {
-          setPovLoading(true)
-          const res = await fetch('/api/story/rewrite', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-            body: JSON.stringify({ storyId: story.id, nodeId: currentNodeId, perspective: p })
-          })
-          const json = await res.json()
-          if (json.content) {
-            const newStory = { ...story }
-            if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
-            newStory.nodes[currentNodeId].povContents[p] = json.content
-            setStory(newStory)
-          }
-        } catch {} finally { setPovLoading(false) }
+        if (!(node.povContents && node.povContents[p])) {
+          try {
+            setPovLoading(true)
+            const res = await fetch('/api/story/rewrite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ storyId: story.id, nodeId: currentNodeId, perspective: p })
+            })
+            const json = await res.json()
+            if (json.content) {
+              const newStory = { ...story }
+              if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
+              newStory.nodes[currentNodeId].povContents[p] = json.content
+              setStory(newStory)
+            }
+          } catch {} finally { setPovLoading(false) }
+        } else {
+          setPovLoading(false)
+        }
       } else {
         const seg = story.originalSegments && story.originalSegments[currentOriginalIndex]
         if (!seg) return
@@ -236,23 +240,27 @@ export default function Home() {
             }
           } catch {}
         }
-        try {
-          setPovLoading(true)
-          const res = await fetch('/api/story/original-rewrite', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-            body: JSON.stringify({ storyId: story.id, index: currentOriginalIndex, perspective: p })
-          })
-          const json = await res.json()
-          if (json.content) {
-            const newStory = { ...story }
-            if (newStory.originalSegments) {
-              if (!newStory.originalSegments[currentOriginalIndex].povContents) newStory.originalSegments[currentOriginalIndex].povContents = {}
-              newStory.originalSegments[currentOriginalIndex].povContents[p] = json.content
+        if (!(seg.povContents && seg.povContents[p])) {
+          try {
+            setPovLoading(true)
+            const res = await fetch('/api/story/original-rewrite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ storyId: story.id, index: currentOriginalIndex, perspective: p })
+            })
+            const json = await res.json()
+            if (json.content) {
+              const newStory = { ...story }
+              if (newStory.originalSegments) {
+                if (!newStory.originalSegments[currentOriginalIndex].povContents) newStory.originalSegments[currentOriginalIndex].povContents = {}
+                newStory.originalSegments[currentOriginalIndex].povContents[p] = json.content
+              }
+              setStory(newStory)
             }
-            setStory(newStory)
-          }
-        } catch {} finally { setPovLoading(false) }
+          } catch {} finally { setPovLoading(false) }
+        } else {
+          setPovLoading(false)
+        }
       }
   }
 
