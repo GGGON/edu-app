@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // If image for this perspective missing, generate it
     const p = perspective || 'default'
     if (!nextNode.images[p]) {
-      const prompt = `${story.style}，${nextNode.summary}，${p === 'default' ? '第一人称' : p + '视角'}，高清`
+      const prompt = `${story.style}，${nextNode.summary}，${p === 'default' ? '原文视角' : p + '视角'}，高清`
       try {
         const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
         if (r.urls[0]) {
@@ -50,7 +50,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const context = `原文：${story.originalText || ''}\n已发生：${story.history.map(id => (story.nodes[id] && story.nodes[id].title) || '').filter(Boolean).join(' -> ')}\n当前情节：${currentNode.content}`
-  const nextData = await generateNextNode(context, selectedOption.text, story.history, apiKey, story.history.length, story.maxInteractiveTurns)
+  const turnsSoFar = Math.max(0, (story.history?.length || 1) - 1)
+  const nextTurnIndex = turnsSoFar + 1
+  const maxTurns = typeof story.maxInteractiveTurns === 'number' ? story.maxInteractiveTurns : undefined
+  const willForceEnd = typeof maxTurns === 'number' && maxTurns > 0 && nextTurnIndex >= maxTurns
+  const nextData = await generateNextNode(context, selectedOption.text, story.history, apiKey, nextTurnIndex, maxTurns)
   
   const newNodeId = randomUUID()
   const newNode: StoryNode = {
@@ -58,14 +62,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     title: nextData.title,
     summary: nextData.summary,
     content: nextData.content,
-    options: nextData.options.map(t => ({ text: t })),
+    options: willForceEnd ? [] : nextData.options.map(t => ({ text: t })),
     images: {},
-    isEnding: nextData.isEnding
+    isEnding: willForceEnd ? true : nextData.isEnding
   }
 
   // Generate Image
   const p = perspective || 'default'
-  const prompt = `${story.style}，${newNode.summary}，${p === 'default' ? '第一人称' : p + '视角'}，高清`
+  const prompt = `${story.style}，${newNode.summary}，${p === 'default' ? '原文视角' : p + '视角'}，高清`
   try {
     const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
     if (r.urls[0]) {
