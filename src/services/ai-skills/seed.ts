@@ -1,7 +1,7 @@
 import { postJson, HttpOptions } from './http';
 
-export const SEED_MODEL = 'ep-20251201112513-srd7n';
-
+//export const SEED_MODEL = 'ep-20251201112513-srd7n';
+export const SEED_MODEL = 'doubao-seed-1-6-flash-250828';
 function toContentText(content: any) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) return content.map(p => p && p.type === 'text' ? p.text : '').join('');
