@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { generateNextNode } from '../../../utils/text'
 import { getStory, updateNode, updateNodeImage, StoryNode, Option } from '../../../services/store'
 import { seedream } from '../../../services/ai-skills'
-
+///teeset
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' })
   const { storyId, nodeId, optionIndex, perspective } = req.body || {}
