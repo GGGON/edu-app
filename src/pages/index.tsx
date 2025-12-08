@@ -100,6 +100,22 @@ export default function Home() {
     if (mode === 'interactive') {
       if (!currentNodeId) { setAnalysis(null); return }
       const node = story.nodes[currentNodeId]
+
+      // Auto-fetch image if missing for current perspective
+      if (!node.images[currentPerspective]) {
+          fetch('/api/story/perspective', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ story, nodeId: node.id, perspective: currentPerspective })
+          })
+          .then(async r => { const j = await r.json(); if (j.url) {
+              const newStory = { ...story }
+              newStory.nodes[currentNodeId].images[currentPerspective] = j.url
+              setStory(newStory)
+          }})
+          .catch(() => {})
+      }
+
       // Check if analysis already exists in node
       if (node.analyses && node.analyses[currentPerspective]) {
         setAnalysis(node.analyses[currentPerspective])
