@@ -1,4 +1,4 @@
-export type Option = { 
+export type Option = {
   text: string;
   nextNodeId?: string; // ID of the node this option leads to (if already generated)
 }

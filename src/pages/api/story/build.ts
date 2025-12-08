@@ -38,10 +38,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
     if (r.urls[0]) {
       rootNode.images['default'] = r.urls[0]
-      // Assume default is the first character's POV if available
-      if (selectedChars.length > 0) {
-        rootNode.images[selectedChars[0]] = r.urls[0]
-      }
     }
   } catch (e) {
     console.error('Image gen failed', e)
