@@ -33,36 +33,50 @@ export type InitResult = {
 
 export async function parseTextToInit(input: string, apiKey?: string, targetCharacterCount?: number): Promise<InitResult> {
   const countInstruction = targetCharacterCount && targetCharacterCount > 0 
-    ? `请尝试提取 ${targetCharacterCount} 个主要或次要角色（如果原文内容支持）。` 
+    ? `请务必提取或生成 ${targetCharacterCount} 个主要或次要角色（如果文中角色不足，请将重要道具或环境拟人化，或根据上下文推断隐含角色，确保数量刚好为 ${targetCharacterCount} 个）。` 
     : '提取主要角色。';
 
-  const prompt = `你是一个互动故事设计师。请分析这段文本，${countInstruction}并生成故事的开篇场景。
+  const systemPrompt = `你是一个互动故事设计师。你的任务是分析用户提供的文本，${countInstruction}并生成故事的开篇场景。
   
-  输出严格的JSON格式：
+  请严格按照以下JSON格式输出（不要包含任何Markdown代码块标记，只输出纯JSON字符串）：
   {
     "title": "开篇标题",
     "summary": "用于生成图片的简短场景描述（包含环境、人物动作、氛围，100字以内）",
-    "content": "详细的开篇叙述文本（300字左右，**必须以文中主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角或原文视角的平铺直叙**）",
-    "characters": ["主角名", "配角1", "配角2"],
-    "options": ["选项1：具体描述下一步行动（如：走向...", "选项2：具体描述另一种选择（如：询问...", "选项3：具体描述第三种选择"]
+    "content": "详细的开篇叙述文本（300字左右，**必须以文中第一位主要人物的视角（第一人称或第三人称深层视角）进行重写**，禁止直接复制原文(除非视角与原文叙述一致)，禁止使用上帝视角或平铺直叙）",
+    "characters": ["角色A", "角色B", "角色C"],
+    "options": ["选项1：具体描述行动...", "选项2：具体描述选择...", "选项3..."]
   }
   
-  注意：
-  1. 选项必须具体、明确，包含动作或对话，避免模糊的“继续”、“下一步”。
-  2. 选项应引导不同的剧情走向。
-  3. **视角要求：严格限制在主要人物的感知范围内，描写其所见、所闻、所感。**
-  
-  文本内容：${input}`
+  重要要求：
+  1. **角色列表**：必须是一个字符串数组，包含正好 ${targetCharacterCount || '若干'} 个角色名字。
+  2. **视角要求**：'content' 字段必须是改写后的内容，体现第一位角色的主观视角。
+  3. **选项**：必须具体、明确，引导剧情。`;
+
+  const userPrompt = `文本内容：\n${input.slice(0, 15000)}`;
 
   try {
-    const resp = await seed.textToText({ input: prompt, temperature: 0.4, max_tokens: 32000, apiKey })
+    const resp = await seed.textToText({ 
+      input: userPrompt, 
+      system: systemPrompt,
+      temperature: 0.5, 
+      max_tokens: 32000, 
+      apiKey 
+    })
     const raw = resp.text || ''
     const obj = extractJson(raw)
+    
+    // Validation: Ensure characters match the target count if possible
+    let chars = Array.isArray(obj.characters) ? obj.characters : []
+    if (chars.length === 0) chars = ['主角']
+    
+    // If we have fewer chars than requested, try to pad them (though AI should have handled it)
+    // We won't pad artificially here to avoid bad UX, but we rely on the prompt.
+    
     return {
       title: obj.title || '故事开始',
       summary: obj.summary || input.slice(0, 100),
-      content: obj.content || input.slice(0, 300),
-      characters: Array.isArray(obj.characters) ? obj.characters : ['主角'],
+      content: obj.content || input.slice(0, 300), // Fallback only if empty
+      characters: chars,
       options: Array.isArray(obj.options) ? obj.options : ['继续探索']
     }
   } catch (e) {

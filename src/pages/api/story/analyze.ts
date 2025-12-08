@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const historyTitles = (storyObj.history || []).map(id => (storyObj.nodes[id] && storyObj.nodes[id].title) || '').filter(Boolean).join(' -> ')
-  const pName = p === 'default' ? '原文视角' : p
+  const pName = p === 'default' ? '默认视角' : p
   const ctx = `原文：${storyObj.originalText || ''}\n已发生：${useOriginal ? '' : historyTitles}\n当前视角：${pName}\n当前摘要：${node.summary}\n当前文本：${node.content}`
   try {
     const result = await analyzeText(ctx, apiKey)
