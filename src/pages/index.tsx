@@ -494,11 +494,11 @@ export default function Home() {
             </div>
 
             <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>最大视角数（不含默认）</label>
+                <label style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>最大视角数</label>
                 <input 
                   type="number"
                   value={maxPerspectives}
-                  onChange={e => setMaxPerspectives(Math.max(0, Math.min(20, Number(e.target.value))))}
+                  onChange={e => setMaxPerspectives(Math.max(1, Math.min(20, Number(e.target.value))))}
                   style={{ padding: 12, borderRadius: 8, border: '1px solid #d1d5db', width: '100%' }}
                 />
             </div>
@@ -565,7 +565,7 @@ export default function Home() {
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#374151' }}>
                   <input type="checkbox" checked={preGenOriginalPov} onChange={e => setPreGenOriginalPov(e.target.checked)} />
-                  预生成视角改写文本（默认 + 所有角色）
+                  预生成视角改写文本（所有选中角色）
                 </label>
               </>
             )}
@@ -658,7 +658,7 @@ export default function Home() {
                     <div style={{ flex: 1 }}>
                       <h2 style={{ fontSize: 28, fontWeight: '800', marginBottom: 12, color: '#111827', letterSpacing: '-0.025em' }}>{displayTitle}</h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-                        <span style={{ fontSize: 12, color: '#4b5563', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 12, padding: '4px 10px', fontWeight: 500 }}>视角：{currentPerspective === 'default' ? '原文视角' : currentPerspective}</span>
+                        <span style={{ fontSize: 12, color: '#4b5563', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 12, padding: '4px 10px', fontWeight: 500 }}>视角：{currentPerspective === 'default' ? '默认' : currentPerspective}</span>
                         {povLoading && (
                           <span style={{ fontSize: 12, color: '#2563eb', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <span style={{ width: 8, height: 8, borderRadius: '50%', border: '2px solid #2563eb', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></span>
