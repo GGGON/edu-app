@@ -17,8 +17,12 @@ export async function parseTextToInit(input: string, apiKey?: string): Promise<I
     "summary": "用于生成图片的简短场景描述（包含环境、人物动作、氛围，100字以内）",
     "content": "详细的开篇叙述文本（300字左右）",
     "characters": ["主角名", "配角1", "配角2"],
-    "options": ["选项1：导致...", "选项2：...", "选项3：..."]
+    "options": ["选项1：具体描述下一步行动（如：走向...", "选项2：具体描述另一种选择（如：询问...", "选项3：具体描述第三种选择"]
   }
+  
+  注意：
+  1. 选项必须具体、明确，包含动作或对话，避免模糊的“继续”、“下一步”。
+  2. 选项应引导不同的剧情走向。
   
   文本内容：${input}`
 
@@ -78,9 +82,11 @@ export async function generateNextNode(
     "title": "节点标题",
     "summary": "用于生成图片的简短场景描述",
     "content": "详细的叙述文本（300字左右）",
-    "options": ["后续选项1", "后续选项2"] (如果是结局，留空数组),
+    "options": ["后续具体选项1（动作/对话）", "后续具体选项2（动作/对话）"] (如果是结局，留空数组),
     "isEnding": boolean (${mustEnd ? '必须为 true' : '是否是结局'})
-  }`
+  }
+  
+  注意：生成的选项（options）必须具体描述角色的下一步行动或对话，禁止使用“继续”、“下一步”、“查看详情”等模糊词汇。`
 
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
