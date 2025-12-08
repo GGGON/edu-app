@@ -73,8 +73,14 @@ export default function Home() {
     const savedNodeId = localStorage.getItem('edu_story_node_id')
     if (savedStory) {
       try {
-        setStory(JSON.parse(savedStory))
+        const parsed = JSON.parse(savedStory)
+        setStory(parsed)
         if (savedNodeId) setCurrentNodeId(savedNodeId)
+        
+        // Ensure we don't start in default perspective if characters exist
+        if (parsed.characters && parsed.characters.length > 0) {
+            setCurrentPerspective(parsed.characters[0])
+        }
       } catch {}
     }
   }, [])
@@ -116,6 +122,27 @@ export default function Home() {
           .catch(() => {})
       }
 
+      // Auto-fetch POV content if missing for current perspective
+      if (currentPerspective !== 'default' && !(node.povContents && node.povContents[currentPerspective])) {
+          setPovLoading(true)
+          fetch('/api/story/rewrite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ story, nodeId: node.id, perspective: currentPerspective })
+          })
+          .then(async r => {
+             const json = await r.json()
+             if (json.content) {
+                 const newStory = { ...story }
+                 if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
+                 newStory.nodes[currentNodeId].povContents![currentPerspective] = json.content
+                 setStory(newStory)
+             }
+          })
+          .catch(() => {})
+          .finally(() => setPovLoading(false))
+      }
+
       // Check if analysis already exists in node
       if (node.analyses && node.analyses[currentPerspective]) {
         setAnalysis(node.analyses[currentPerspective])
@@ -143,6 +170,30 @@ export default function Home() {
     } else {
       const seg = story.originalSegments && story.originalSegments[currentOriginalIndex]
       if (!seg) { setAnalysis(null); return }
+
+      // Auto-fetch POV content for original segment if missing
+      if (currentPerspective !== 'default' && !(seg.povContents && seg.povContents[currentPerspective])) {
+          setPovLoading(true)
+          fetch('/api/story/original-rewrite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ story, index: currentOriginalIndex, perspective: currentPerspective })
+          })
+          .then(async r => {
+             const json = await r.json()
+             if (json.content) {
+                 const newStory = { ...story }
+                 if (newStory.originalSegments) {
+                    if (!newStory.originalSegments[currentOriginalIndex].povContents) newStory.originalSegments[currentOriginalIndex].povContents = {}
+                    newStory.originalSegments[currentOriginalIndex].povContents![currentPerspective] = json.content
+                 }
+                 setStory(newStory)
+             }
+          })
+          .catch(() => {})
+          .finally(() => setPovLoading(false))
+      }
+
       // Check if analysis already exists
       if (seg.analyses && seg.analyses[currentPerspective]) {
         setAnalysis(seg.analyses[currentPerspective])
@@ -193,7 +244,12 @@ export default function Home() {
       const storyData = json.story
       setStory(storyData)
       setCurrentNodeId(storyData.rootId)
-      setCurrentPerspective('default')
+      // Default to first character if available
+      if (storyData.characters && storyData.characters.length > 0) {
+        setCurrentPerspective(storyData.characters[0])
+      } else {
+        setCurrentPerspective('default')
+      }
     } catch (err) {
       const hasMessage = typeof err === 'object' && err && 'message' in err
       const m = hasMessage ? String((err as Record<string, unknown>)['message']) : String(err)
@@ -554,7 +610,6 @@ export default function Home() {
                         onChange={e => handlePerspectiveChange(e.target.value)}
                         style={{ padding: '8px', borderRadius: 6, border: '1px solid #d1d5db' }}
                     >
-                        <option value="default">原文视角</option>
                         {story.characters.map(c => (
                             <option key={c} value={c}>{c}</option>
                         ))}
