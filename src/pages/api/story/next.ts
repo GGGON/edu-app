@@ -31,7 +31,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!nextNode.images[p]) {
       const prompt = `${storyObj.style}，${nextNode.summary}，${p === 'default' ? '原文视角' : p + '视角'}，高清`
       try {
-        const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+        const r = await seedream.textToImage({ prompt, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
         if (r.urls[0]) {
             nextNode.images[p] = r.urls[0]
         }
@@ -70,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const p = perspective || 'default'
   const prompt = `${storyObj.style}，${newNode.summary}，${p === 'default' ? '原文视角' : p + '视角'}，高清`
   try {
-    const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+    const r = await seedream.textToImage({ prompt, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
     if (r.urls[0]) {
         newNode.images[p] = r.urls[0]
     }

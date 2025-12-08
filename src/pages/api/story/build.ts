@@ -35,7 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const primaryChar = selectedChars[0] || initData.characters[0] || '主角'
   const prompt = `${style || '写实风格'}，${initData.summary}，高清，电影感，${primaryChar}视角`
   try {
-    const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+    const r = await seedream.textToImage({ prompt, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
     if (r.urls[0]) {
       rootNode.images['default'] = r.urls[0]
     }
@@ -57,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           try {
             const pov = p === 'default' ? '原文视角' : `${p}视角`
             const promptImg = `${style || '写实风格'}，${seg.summary}，${pov}，高清`
-            const r = await seedream.textToImage({ prompt: promptImg, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+            const r = await seedream.textToImage({ prompt: promptImg, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
             if (r.urls[0]) {
               seg.images[p] = r.urls[0]
             }

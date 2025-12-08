@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   // Generate
   const prompt = `${storyObj.style}，${node.summary}，${perspective}视角，高清`
   try {
-    const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+    const r = await seedream.textToImage({ prompt, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
     const url = r.urls[0]
     if (url) {
       return res.json({ url })
