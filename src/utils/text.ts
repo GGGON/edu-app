@@ -113,28 +113,38 @@ export async function generateNextNode(
 
   const prompt = `你是一个专业的互动小说家。请基于当前故事上下文、用户选择以及参考原文（如果有），创作下一个精彩的情节节点。
   
-  ${originalText ? `参考原文（仅供参考风格和走向）：\n${originalText.slice(0, 3000)}...\n` : ''}
-  上下文概要：${context}
-  用户选择：${choice}
+  **核心原则**：
+  1. **推进剧情**：必须根据用户的选择，让故事时间向前流动，发生**新的**事件、对话或冲突。**严禁重复、总结或仅仅换说法重述上一段剧情**。
+  2. **因果逻辑**：新情节必须是用户选择的直接后果。
+  3. **沉浸体验**：描写必须具体、生动，有画面感。
+
+  ${originalText ? `参考原文（仅供参考风格和大致走向，不要直接照搬，需根据互动分支进行创作）：\n${originalText.slice(0, 3000)}...\n` : ''}
+  
+  已发生的情节（上下文）：
+  ${context}
+  
+  用户刚才的选择：
+  ${choice}
+  
   ${isApproachingEnd ? '注意：故事即将结束，请开始收束剧情，为结局做铺垫。' : ''}
   ${mustEnd ? '注意：这是故事的最后一个环节，必须生成结局。' : ''}
   
   请输出严格的JSON格式（不要包含Markdown代码块标记）：
   {
-    "title": "新情节标题（必填）",
-    "summary": "画面描述（必填，用于生成配图，需包含环境、人物、光影，100字以内）",
-    "content": "详细剧情文本（必填，300-500字，描写细腻，推动剧情，**必须以文中主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角或原文视角的平铺直叙**）",
-    "options": ["选项1（具体行动）", "选项2（具体行动）"] (如果是结局，留空数组),
+    "title": "新情节标题（简练）",
+    "summary": "画面描述（用于生成配图，需包含环境、人物、光影，100字以内）",
+    "content": "详细剧情文本（300-500字，**必须是新发生的事件**，禁止复述前文。必须以主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角）",
+    "options": ["选项1（具体的下一步行动）", "选项2（具体的下一步行动）"] (如果是结局，留空数组),
     "isEnding": boolean (${mustEnd ? '必须为 true' : '是否是结局'})
   }
   
   注意：
-  1. 内容必须充实，禁止返回空字符串。
-  2. 选项必须具体描述角色的下一步行动或对话，禁止使用“继续”、“下一步”等模糊词汇。
-  3. **视角要求：严格限制在主要人物的感知范围内，描写其所见、所闻、所感。**`
+  1. 内容必须充实，推动故事发展。
+  2. 选项必须具体，引导后续不同的分支。
+  3. **视角要求：严格限制在主要人物的感知范围内。**`
 
   try {
-    const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
+    const resp = await seed.textToText({ input: prompt, temperature: 0.8, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
     let obj: any = {}
     try {
@@ -158,9 +168,6 @@ export async function generateNextNode(
     // If JSON parsed but content is empty, and raw is different/longer, might be parsing error or bad output
     if (!content && raw.length > 100) {
         console.warn('AI returned JSON without content but raw text exists. Using raw.')
-        // If raw contains JSON-like structure but we failed to extract content, fallback to raw
-        // But if raw IS the JSON string that has empty content, this won't help.
-        // Assume if content is empty, the model might have failed.
     }
 
     if (!content) {
@@ -176,9 +183,6 @@ export async function generateNextNode(
     }
   } catch (e) {
     console.error('Generate next node failed:', e)
-    // Try to log the raw response if possible
-    // console.error('Raw response:', (await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })).text) // Can't easily re-fetch
-    
     return {
       title: '未知情节',
       summary: '迷雾重重...',
@@ -263,14 +267,15 @@ export async function splitOriginalToSegments(input: string, count?: number, api
 export async function rewritePerspective(content: string, summary: string, perspective: string, apiKey?: string): Promise<string> {
   if (perspective === 'default') return content
   const pov = perspective === 'default' ? '原文视角' : `${perspective}视角`
-  const prompt = `请将以下文本严格按${pov}改写，并保持原文故事逻辑。
-  注意：**必须完全沉浸在${perspective}的视角中，禁止出现“原文视角”或“上帝视角”的旁白感。**
+  const prompt = `请将以下文本严格按${pov}进行**深度改写**，在保持原有情节逻辑不变的前提下，焕然一新。
+  注意：**必须完全沉浸在${perspective}的视角中，通过其感官细节和心理活动重构叙事，禁止出现“原文视角”或“上帝视角”的旁白感。**
   
   要求：
-  - 逻辑一致：不改变事件顺序、因果关系与角色动机，不添加新设定。
+  - 差异化：**必须与原文有显著的文字差异**，使用符合该角色身份的口吻、心理描写和观察角度。
+  - 逻辑一致：不改变事件核心进程。
   - 信息边界：**严格限制在${perspective}的感官范围内**，只描写其所见、所闻、所感；他人内心必须改为通过行为细节推断，绝不可直接描写。
-  - 代词与称呼：严格符合该视角（如第一人称用“我”，角色视角用其自称/对他人称呼）。
-  - 细节体现：**强化该视角的心理活动与主观感受**，避免客观冷淡的全知叙述。
+  - 代词与称呼：严格符合该视角（如第一人称用“我”）。
+  - 细节体现：**强化该视角的心理活动与主观感受**。
   - 篇幅：300-400字，语言自然流畅。
 
   角色：${perspective}
@@ -279,7 +284,7 @@ export async function rewritePerspective(content: string, summary: string, persp
 
   输出严格JSON：{"content":"改写后的文本"}`
   try {
-    const resp = await seed.textToText({ input: prompt, temperature: 0.5, max_tokens: 32000, apiKey })
+    const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
     const obj = extractJson(raw) as { content?: unknown }
     return String(obj.content ?? content)
