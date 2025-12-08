@@ -61,7 +61,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             if (r.urls[0]) {
               seg.images[p] = r.urls[0]
             }
-          } catch {}
+          } catch (e) {
+            console.error('Build image pool failed', e)
+          }
         }))
       }))
     }

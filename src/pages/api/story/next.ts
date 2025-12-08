@@ -35,7 +35,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (r.urls[0]) {
             nextNode.images[p] = r.urls[0]
         }
-      } catch {}
+      } catch (e) {
+        console.error('Next node existing image gen failed', e)
+      }
     }
     // Update history
     if (!storyObj.history.includes(nextNode.id)) {
@@ -74,7 +76,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (r.urls[0]) {
         newNode.images[p] = r.urls[0]
     }
-  } catch {}
+  } catch (e) {
+    console.error('Next node new image gen failed', e)
+  }
 
   // Link and Save
   selectedOption.nextNodeId = newNodeId

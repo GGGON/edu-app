@@ -92,34 +92,66 @@ export async function generateNextNode(
   const isApproachingEnd = typeof currentTurn === 'number' && typeof maxTurns === 'number' && maxTurns > 0 && currentTurn >= maxTurns - 1;
   const mustEnd = typeof currentTurn === 'number' && typeof maxTurns === 'number' && maxTurns > 0 && currentTurn >= maxTurns;
 
-  const prompt = `基于当前故事上下文和用户的选择，生成下一个情节节点。
+  const prompt = `你是一个专业的互动小说家。请基于当前故事上下文、用户选择以及参考原文（如果有），创作下一个精彩的情节节点。
   
-  ${originalText ? `参考原文：\n${originalText}\n` : ''}
+  ${originalText ? `参考原文（仅供参考风格和走向）：\n${originalText.slice(0, 3000)}...\n` : ''}
   上下文概要：${context}
   用户选择：${choice}
   ${isApproachingEnd ? '注意：故事即将结束，请开始收束剧情，为结局做铺垫。' : ''}
   ${mustEnd ? '注意：这是故事的最后一个环节，必须生成结局。' : ''}
   
-  请输出严格的JSON格式：
+  请输出严格的JSON格式（不要包含Markdown代码块标记）：
   {
-    "title": "节点标题",
-    "summary": "用于生成图片的简短场景描述",
-    "content": "详细的叙述文本",
-    "options": ["后续具体选项1（动作/对话）", "后续具体选项2（动作/对话）"] (如果是结局，留空数组),
+    "title": "新情节标题（必填）",
+    "summary": "画面描述（必填，用于生成配图，需包含环境、人物、光影，100字以内）",
+    "content": "详细剧情文本（必填，300-500字，描写细腻，推动剧情）",
+    "options": ["选项1（具体行动）", "选项2（具体行动）"] (如果是结局，留空数组),
     "isEnding": boolean (${mustEnd ? '必须为 true' : '是否是结局'})
   }
   
-  注意：生成的选项（options）必须具体描述角色的下一步行动或对话，禁止使用“继续”、“下一步”、“查看详情”等模糊词汇。`
+  注意：
+  1. 内容必须充实，禁止返回空字符串。
+  2. 选项必须具体描述角色的下一步行动或对话，禁止使用“继续”、“下一步”等模糊词汇。`
 
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const obj = extractJson(raw)
+    let obj: any = {}
+    try {
+      obj = extractJson(raw)
+    } catch {
+      // If JSON parsing fails, but raw text is long, use raw text as content
+      if (raw.length > 50) {
+        obj = {
+          title: '新剧情',
+          summary: raw.slice(0, 80),
+          content: raw,
+          options: ['继续'],
+          isEnding: false
+        }
+      }
+    }
+    
+    // Fallback for content fields
+    let content = obj.content || obj.text || obj.narrative || obj.story || ''
+    
+    // If JSON parsed but content is empty, and raw is different/longer, might be parsing error or bad output
+    if (!content && raw.length > 100) {
+        console.warn('AI returned JSON without content but raw text exists. Using raw.')
+        // If raw contains JSON-like structure but we failed to extract content, fallback to raw
+        // But if raw IS the JSON string that has empty content, this won't help.
+        // Assume if content is empty, the model might have failed.
+    }
+
+    if (!content) {
+        console.warn('AI returned JSON without content. Raw:', raw)
+    }
+
     return {
       title: obj.title || '新情节',
-      summary: obj.summary || '剧情继续...',
-      content: obj.content || '...',
-      options: Array.isArray(obj.options) ? obj.options : [],
+      summary: obj.summary || (content ? content.slice(0, 80) : '剧情继续...'),
+      content: content || '...', 
+      options: Array.isArray(obj.options) && obj.options.length > 0 ? obj.options : (mustEnd ? [] : ['继续']),
       isEnding: !!obj.isEnding
     }
   } catch (e) {
