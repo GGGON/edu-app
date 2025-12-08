@@ -155,7 +155,16 @@ export type SegmentResult = {
 
 export async function splitOriginalToSegments(input: string, count?: number, apiKey?: string): Promise<SegmentResult[]> {
   const n = typeof count === 'number' && count > 0 ? count : undefined
-  const prompt = `请将以下原文分解为${n ? String(n) + '个' : '6-12个'}连续场景片段，并给出每段的标题、用于图像生成的摘要、与对应的完整叙述文本。\n\n输出严格的JSON数组：\n[{"title":"","summary":"","content":""}]\n\n文本：${input}`
+  const prompt = `请将以下原文分解为${n ? String(n) + '个' : '6-12个'}连续场景片段，并给出每段的标题、用于图像生成的摘要、与对应的完整叙述文本。
+  
+  注意：
+  1. 第一段（开篇）必须严格只包含故事的开篇部分，绝对不要包含后续情节。
+  2. 保持原文的连贯性。
+
+  输出严格的JSON数组：
+  [{"title":"","summary":"","content":""}]
+
+  文本：${input}`
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.2, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
