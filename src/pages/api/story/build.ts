@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { randomUUID } from 'crypto'
 import { parseTextToInit, splitOriginalToSegments, analyzeText, rewritePerspective } from '../../../utils/text'
-import { saveStory, StoryNode, Story } from '../../../services/store'
+import { StoryNode, Story } from '../../../services/store'
 import { seedream } from '../../../services/ai-skills'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -112,6 +112,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     originalSegments: originalArray
   }
   
-  saveStory(story)
-  return res.json({ storyId })
+  return res.json({ story })
 }
