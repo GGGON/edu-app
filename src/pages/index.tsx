@@ -302,7 +302,7 @@ export default function Home() {
   }, [mode, currentOriginalIndex, currentPerspective, story, apiKey])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f7f9', fontFamily: 'sans-serif' }}>
+    <div style={{ minHeight: '100vh' }}>
       <Head>
         <title>互动故事生成器</title>
       </Head>
