@@ -11,9 +11,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text' })
 
+  const maxP = typeof maxPerspectives === 'number' ? Math.max(1, Math.floor(maxPerspectives)) : 4
+
   // 1. Parse Text for Initial Scene and Characters
-  const initData = await parseTextToInit(text, apiKey)
-  const maxP = typeof maxPerspectives === 'number' ? Math.max(0, Math.floor(maxPerspectives)) : 0
+  const initData = await parseTextToInit(text, apiKey, maxP)
   const selectedChars = Array.isArray(initData.characters) ? (maxP > 0 ? initData.characters.slice(0, maxP) : initData.characters) : []
   
   const storyId = randomUUID()

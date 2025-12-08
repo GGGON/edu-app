@@ -31,8 +31,12 @@ export type InitResult = {
   options: string[];
 }
 
-export async function parseTextToInit(input: string, apiKey?: string): Promise<InitResult> {
-  const prompt = `你是一个互动故事设计师。请分析这段文本，提取主要角色，并生成故事的开篇场景。
+export async function parseTextToInit(input: string, apiKey?: string, targetCharacterCount?: number): Promise<InitResult> {
+  const countInstruction = targetCharacterCount && targetCharacterCount > 0 
+    ? `请尝试提取 ${targetCharacterCount} 个主要或次要角色（如果原文内容支持）。` 
+    : '提取主要角色。';
+
+  const prompt = `你是一个互动故事设计师。请分析这段文本，${countInstruction}并生成故事的开篇场景。
   
   输出严格的JSON格式：
   {
