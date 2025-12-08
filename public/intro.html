@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intro Sequence - 孔乙己</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@400;700&display=swap');
+
+        :root {
+            --bg-color: #fdfbf7;
+            --ink-color: #1c1917;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Noto Serif SC", "KaiTi", serif;
+            background-color: var(--bg-color);
+        }
+
+        /* Stages */
+        #stage-black {
+            position: fixed;
+            inset: 0;
+            background-color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            transition: opacity 2s ease-in-out;
+        }
+
+        /* Text Container */
+        #text-container {
+            max-width: 900px;
+            padding: 0 40px;
+            text-align: left;
+            line-height: 2;
+            color: #e5e5e5;
+            font-size: 2rem;
+            position: relative;
+        }
+
+        .char {
+            display: inline-block;
+            opacity: 0;
+            transition: opacity 3s ease-out, transform 4s cubic-bezier(0.25, 1, 0.5, 1);
+            will-change: transform, opacity;
+        }
+
+        /* Scatter State */
+        .scattered .char {
+            opacity: 0 !important; /* Finally fade out */
+        }
+
+        /* Background Layer (Ink Wash) */
+        #stage-background {
+            position: fixed;
+            inset: 0;
+            opacity: 0;
+            z-index: 10;
+            transition: opacity 1.5s ease-in-out;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 0%, rgba(240,230,220,0.8) 100%),
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.1'/%3E%3C/svg%3E"),
+                linear-gradient(135deg, #e6e6e6 0%, #ffffff 100%);
+        }
+
+        /* Ink Blot Decoration */
+        .ink-blob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80vmin;
+            height: 80vmin;
+            opacity: 0.15;
+            pointer-events: none;
+            filter: blur(40px);
+        }
+
+        /* Title Content */
+        #title-content {
+            position: relative;
+            z-index: 20;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 1s ease-out;
+        }
+
+        h1 {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 5rem;
+            margin-bottom: 1rem;
+            color: #2d2a26;
+            letter-spacing: 0.5rem;
+            text-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        }
+
+        p {
+            font-size: 1.5rem;
+            color: #57534e;
+            letter-spacing: 0.2rem;
+        }
+
+        /* Start Button */
+        #start-btn {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: white;
+            border: 1px solid #ccc;
+            cursor: pointer;
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        #start-btn:hover {
+            background: #f5f5f5;
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Start Button -->
+    <button id="start-btn" onclick="startSequence()">开始录制 (Start)</button>
+
+    <!-- Black Overlay Stage -->
+    <div id="stage-black">
+        <div id="text-container"></div>
+    </div>
+
+    <!-- Background Stage -->
+    <div id="stage-background">
+        <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" class="ink-blob">
+            <path fill="#1c1917" d="M44.7,-76.4C58.9,-69.2,71.8,-59.1,81.6,-46.6C91.4,-34.1,98.1,-19.2,95.8,-5.3C93.5,8.6,82.2,21.5,70.6,31.2C59,40.9,47.1,47.4,35.7,52.3C24.3,57.2,13.4,60.5,1.5,58C-10.4,55.4,-23.3,47,-36.1,39.3C-48.9,31.6,-61.6,24.6,-68.8,13.4C-76,2.2,-77.7,-13.2,-72.6,-26.8C-67.5,-40.4,-55.6,-52.2,-42.6,-59.8C-29.6,-67.4,-15.5,-70.8,-0.5,-70C14.5,-69.1,29,-64,44.7,-76.4Z" transform="translate(100 100)" />
+        </svg>
+        <div id="title-content">
+            <h1>故事文本</h1>
+            <h2>智能互动故事生成器</h2>
+            <p>即梦AI4.5</p>
+            <p>利用AI的力量，将任意文本转化为一场沉浸式的视觉叙事之旅。</p>
+            <p>不再只是‘读’书，而是‘进入’书中的世界。</p>
+        </div>
+    </div>
+
+    <!-- Audio (Optional) -->
+    <audio id="bgm" loop>
+        <!-- Place a bgm.mp3 in the same folder if needed -->
+        <source src="bgm.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        const titleText = "《孔乙己》";
+        const bodyText = "鲁镇的酒店的格局，是和别处不同的：都是当街一个曲尺形的大柜台，柜里面预备着热水，可以随时温酒。做工的人，傍午傍晚散了工，每每花四文铜钱，买一碗酒，——这是二十多年前的事，现在每碗要涨到十文，——靠柜外站着，热热的喝了休息。";
+        const container = document.getElementById('text-container');
+        const stageBlack = document.getElementById('stage-black');
+        const stageBg = document.getElementById('stage-background');
+        const titleContent = document.getElementById('title-content');
+        const startBtn = document.getElementById('start-btn');
+        const bgm = document.getElementById('bgm');
+
+        // Helper to create char spans
+        function createCharSpan(char, isTitle = false) {
+            const span = document.createElement('span');
+            span.textContent = char;
+            span.className = 'char';
+            if (isTitle) {
+                span.style.fontSize = '1.5em';
+                span.style.fontWeight = 'bold';
+                span.style.marginBottom = '20px';
+                span.style.display = 'inline-block';
+            }
+            
+            // Pre-calculate random scatter destination
+            const rX = (Math.random() - 0.5) * 2000;
+            const rY = (Math.random() - 0.5) * 2000;
+            const rR = (Math.random() - 0.5) * 720;
+            span.dataset.x = rX;
+            span.dataset.y = rY;
+            span.dataset.r = rR;
+            return span;
+        }
+
+        // 1. Render Title Line
+        const titleDiv = document.createElement('div');
+        titleDiv.style.textAlign = 'center';
+        titleDiv.style.width = '100%';
+        titleDiv.style.marginBottom = '40px'; // Space between title and body
+        titleText.split('').forEach(char => {
+            titleDiv.appendChild(createCharSpan(char, true));
+        });
+        container.appendChild(titleDiv);
+
+        // 2. Render Body Text
+        const bodyDiv = document.createElement('div');
+        bodyText.split('').forEach(char => {
+            bodyDiv.appendChild(createCharSpan(char));
+        });
+        container.appendChild(bodyDiv);
+
+        function startSequence() {
+            startBtn.classList.add('hidden');
+            
+            // Try play audio
+            bgm.volume = 0.5;
+            bgm.play().catch(e => console.log("Audio need interaction"));
+
+            // 0-1s: Black Screen (Already black by default style)
+
+            // 1s-2s: Fade in text (Faster)
+            const chars = document.querySelectorAll('.char');
+            setTimeout(() => {
+                chars.forEach((span, i) => {
+                    setTimeout(() => {
+                        span.style.opacity = '1';
+                    }, i * 15); // 15ms per char (very fast)
+                });
+            }, 1000);
+
+            // 6s-8s: Scatter
+            setTimeout(() => {
+                chars.forEach(span => {
+                    const x = span.dataset.x;
+                    const y = span.dataset.y;
+                    const r = span.dataset.r;
+                    span.style.transform = `translate(${x}px, ${y}px) rotate(${r}deg) scale(3)`; // Scale up to 3x
+                    span.style.opacity = '0'; // Fade out while flying
+                });
+            }, 6000);
+
+            // 8s+: Reveal Background
+            setTimeout(() => {
+                stageBlack.style.opacity = '0'; // Fade out black overlay
+                stageBg.style.opacity = '1';    // Fade in background
+                setTimeout(() => {
+                    titleContent.style.opacity = '1'; // Fade in title slightly later
+                    stageBlack.style.display = 'none'; // Remove black layer from flow
+                }, 1000);
+            }, 10000);
+        }
+    </script>
+</body>
+</html>
