@@ -48,12 +48,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.json({ nextNode, updatedCurrentNode: currentNode })
   }
 
-  const context = `原文：${storyObj.originalText || ''}\n已发生：${storyObj.history.map(id => (storyObj.nodes[id] && storyObj.nodes[id].title) || '').filter(Boolean).join(' -> ')}\n当前情节：${currentNode.content}`
+  const context = `已发生：${storyObj.history.map(id => (storyObj.nodes[id] && storyObj.nodes[id].title) || '').filter(Boolean).join(' -> ')}\n当前情节：${currentNode.content}`
   const turnsSoFar = Math.max(0, (storyObj.history?.length || 1) - 1)
   const nextTurnIndex = turnsSoFar + 1
   const maxTurns = typeof storyObj.maxInteractiveTurns === 'number' ? storyObj.maxInteractiveTurns : undefined
   const willForceEnd = typeof maxTurns === 'number' && maxTurns > 0 && nextTurnIndex >= maxTurns
-  const nextData = await generateNextNode(context, selectedOption.text, storyObj.history, apiKey, nextTurnIndex, maxTurns)
+  const nextData = await generateNextNode(context, selectedOption.text, storyObj.history, apiKey, nextTurnIndex, maxTurns, storyObj.originalText)
   
   const newNodeId = randomUUID()
   const newNode: StoryNode = {

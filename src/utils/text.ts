@@ -1,5 +1,28 @@
 import { seed } from '../services/ai-skills'
 
+function extractJson(str: string): any {
+  let cleaned = str.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+  
+  // Try direct parse first
+  try { return JSON.parse(cleaned); } catch {}
+
+  // Try to find object
+  const s = cleaned.indexOf('{');
+  const e = cleaned.lastIndexOf('}');
+  if (s >= 0 && e > s) {
+     try { return JSON.parse(cleaned.slice(s, e + 1)); } catch {}
+  }
+  
+  // Try to find array
+  const sa = cleaned.indexOf('[');
+  const ea = cleaned.lastIndexOf(']');
+  if (sa >= 0 && ea > sa) {
+     try { return JSON.parse(cleaned.slice(sa, ea + 1)); } catch {}
+  }
+
+  throw new Error('No valid JSON found');
+}
+
 export type InitResult = {
   title: string;
   summary: string;
@@ -29,9 +52,7 @@ export async function parseTextToInit(input: string, apiKey?: string): Promise<I
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.4, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const jsonStart = raw.indexOf('{')
-    const jsonEnd = raw.lastIndexOf('}')
-    const obj = JSON.parse(raw.slice(jsonStart, jsonEnd + 1))
+    const obj = extractJson(raw)
     return {
       title: obj.title || '故事开始',
       summary: obj.summary || input.slice(0, 100),
@@ -65,13 +86,15 @@ export async function generateNextNode(
   history: string[], 
   apiKey?: string,
   currentTurn?: number,
-  maxTurns?: number
+  maxTurns?: number,
+  originalText?: string
 ): Promise<NextNodeResult> {
   const isApproachingEnd = typeof currentTurn === 'number' && typeof maxTurns === 'number' && maxTurns > 0 && currentTurn >= maxTurns - 1;
   const mustEnd = typeof currentTurn === 'number' && typeof maxTurns === 'number' && maxTurns > 0 && currentTurn >= maxTurns;
 
   const prompt = `基于当前故事上下文和用户的选择，生成下一个情节节点。
   
+  ${originalText ? `参考原文：\n${originalText}\n` : ''}
   上下文概要：${context}
   用户选择：${choice}
   ${isApproachingEnd ? '注意：故事即将结束，请开始收束剧情，为结局做铺垫。' : ''}
@@ -81,7 +104,7 @@ export async function generateNextNode(
   {
     "title": "节点标题",
     "summary": "用于生成图片的简短场景描述",
-    "content": "详细的叙述文本（300字左右）",
+    "content": "详细的叙述文本",
     "options": ["后续具体选项1（动作/对话）", "后续具体选项2（动作/对话）"] (如果是结局，留空数组),
     "isEnding": boolean (${mustEnd ? '必须为 true' : '是否是结局'})
   }
@@ -91,9 +114,7 @@ export async function generateNextNode(
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const jsonStart = raw.indexOf('{')
-    const jsonEnd = raw.lastIndexOf('}')
-    const obj = JSON.parse(raw.slice(jsonStart, jsonEnd + 1))
+    const obj = extractJson(raw)
     return {
       title: obj.title || '新情节',
       summary: obj.summary || '剧情继续...',
@@ -101,7 +122,11 @@ export async function generateNextNode(
       options: Array.isArray(obj.options) ? obj.options : [],
       isEnding: !!obj.isEnding
     }
-  } catch {
+  } catch (e) {
+    console.error('Generate next node failed:', e)
+    // Try to log the raw response if possible
+    // console.error('Raw response:', (await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })).text) // Can't easily re-fetch
+    
     return {
       title: '未知情节',
       summary: '迷雾重重...',
@@ -122,9 +147,7 @@ export async function analyzeText(input: string, apiKey?: string): Promise<Analy
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.3, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const s = raw.indexOf('{')
-    const e = raw.lastIndexOf('}')
-    const obj = JSON.parse(raw.slice(s, e + 1))
+    const obj = extractJson(raw)
     const knowledge = Array.isArray(obj.knowledge) ? obj.knowledge.map((k: unknown) => {
       const kk = k as { point?: unknown; quote?: unknown; explanation?: unknown }
       return {
@@ -168,9 +191,7 @@ export async function splitOriginalToSegments(input: string, count?: number, api
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.2, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const s = raw.indexOf('[')
-    const e = raw.lastIndexOf(']')
-    const arr = JSON.parse(raw.slice(s, e + 1))
+    const arr = extractJson(raw)
     if (Array.isArray(arr)) {
       return arr.map((x: unknown) => {
         const xx = x as { title?: unknown; summary?: unknown; content?: unknown }
@@ -194,9 +215,7 @@ export async function rewritePerspective(content: string, summary: string, persp
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.5, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const s = raw.indexOf('{')
-    const e = raw.lastIndexOf('}')
-    const obj = JSON.parse(raw.slice(s, e + 1)) as { content?: unknown }
+    const obj = extractJson(raw) as { content?: unknown }
     return String(obj.content ?? content)
   } catch {
     return content
