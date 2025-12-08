@@ -38,7 +38,7 @@ export async function parseTextToInit(input: string, apiKey?: string): Promise<I
   {
     "title": "开篇标题",
     "summary": "用于生成图片的简短场景描述（包含环境、人物动作、氛围，100字以内）",
-    "content": "详细的开篇叙述文本（300字左右）",
+    "content": "详细的开篇叙述文本（300字左右，**必须以文中主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角或原文视角的平铺直叙**）",
     "characters": ["主角名", "配角1", "配角2"],
     "options": ["选项1：具体描述下一步行动（如：走向...", "选项2：具体描述另一种选择（如：询问...", "选项3：具体描述第三种选择"]
   }
@@ -46,6 +46,7 @@ export async function parseTextToInit(input: string, apiKey?: string): Promise<I
   注意：
   1. 选项必须具体、明确，包含动作或对话，避免模糊的“继续”、“下一步”。
   2. 选项应引导不同的剧情走向。
+  3. **视角要求：严格限制在主要人物的感知范围内，描写其所见、所闻、所感。**
   
   文本内容：${input}`
 
@@ -104,14 +105,15 @@ export async function generateNextNode(
   {
     "title": "新情节标题（必填）",
     "summary": "画面描述（必填，用于生成配图，需包含环境、人物、光影，100字以内）",
-    "content": "详细剧情文本（必填，300-500字，描写细腻，推动剧情）",
+    "content": "详细剧情文本（必填，300-500字，描写细腻，推动剧情，**必须以文中主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角或原文视角的平铺直叙**）",
     "options": ["选项1（具体行动）", "选项2（具体行动）"] (如果是结局，留空数组),
     "isEnding": boolean (${mustEnd ? '必须为 true' : '是否是结局'})
   }
   
   注意：
   1. 内容必须充实，禁止返回空字符串。
-  2. 选项必须具体描述角色的下一步行动或对话，禁止使用“继续”、“下一步”等模糊词汇。`
+  2. 选项必须具体描述角色的下一步行动或对话，禁止使用“继续”、“下一步”等模糊词汇。
+  3. **视角要求：严格限制在主要人物的感知范围内，描写其所见、所闻、所感。**`
 
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
@@ -243,7 +245,21 @@ export async function splitOriginalToSegments(input: string, count?: number, api
 export async function rewritePerspective(content: string, summary: string, perspective: string, apiKey?: string): Promise<string> {
   if (perspective === 'default') return content
   const pov = perspective === 'default' ? '原文视角' : `${perspective}视角`
-  const prompt = `请将以下文本严格按${pov}改写，并保持原文故事逻辑。要求：\n- 逻辑一致：不改变事件顺序、因果关系与角色动机，不添加新设定。\n- 信息边界：只使用该视角能观察/知晓的信息；他人内心改为通过行为细节推断。\n- 代词与称呼：严格符合该视角（如第一人称用“我”，角色视角用其自称/对他人称呼）。\n- 细节体现：从该视角的观察与感受展开，避免全知叙述。\n- 篇幅：300-400字，语言自然流畅。\n\n角色：${perspective}\n摘要：${summary}\n原文：${content}\n\n输出严格JSON：{"content":"改写后的文本"}`
+  const prompt = `请将以下文本严格按${pov}改写，并保持原文故事逻辑。
+  注意：**必须完全沉浸在${perspective}的视角中，禁止出现“原文视角”或“上帝视角”的旁白感。**
+  
+  要求：
+  - 逻辑一致：不改变事件顺序、因果关系与角色动机，不添加新设定。
+  - 信息边界：**严格限制在${perspective}的感官范围内**，只描写其所见、所闻、所感；他人内心必须改为通过行为细节推断，绝不可直接描写。
+  - 代词与称呼：严格符合该视角（如第一人称用“我”，角色视角用其自称/对他人称呼）。
+  - 细节体现：**强化该视角的心理活动与主观感受**，避免客观冷淡的全知叙述。
+  - 篇幅：300-400字，语言自然流畅。
+
+  角色：${perspective}
+  摘要：${summary}
+  原文：${content}
+
+  输出严格JSON：{"content":"改写后的文本"}`
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.5, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
