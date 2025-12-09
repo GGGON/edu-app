@@ -111,85 +111,104 @@ export async function generateNextNode(
   const isApproachingEnd = typeof currentTurn === 'number' && typeof maxTurns === 'number' && maxTurns > 0 && currentTurn >= maxTurns - 1;
   const mustEnd = typeof currentTurn === 'number' && typeof maxTurns === 'number' && maxTurns > 0 && currentTurn >= maxTurns;
 
-  const prompt = `你是一个专业的互动小说家。请基于当前故事上下文、用户选择以及参考原文（如果有），创作下一个精彩的情节节点。
-  
-  **核心原则**：
-  1. **推进剧情**：必须根据用户的选择，让故事时间向前流动，发生**新的**事件、对话或冲突。**严禁重复、总结或仅仅换说法重述上一段剧情**。
-  2. **因果逻辑**：新情节必须是用户选择的直接后果。
-  3. **沉浸体验**：描写必须具体、生动，有画面感。
+  const systemPrompt = `你是一个专业的互动小说家。请基于用户提供的故事上下文和选择，创作下一个精彩的情节节点。
 
-  ${originalText ? `参考原文（仅供参考风格和大致走向，不要直接照搬，需根据互动分支进行创作）：\n${originalText.slice(0, 3000)}...\n` : ''}
-  
-  已发生的情节（上下文）：
-  ${context}
-  
-  用户刚才的选择：
-  ${choice}
-  
-  ${isApproachingEnd ? '注意：故事即将结束，请开始收束剧情，为结局做铺垫。' : ''}
-  ${mustEnd ? '注意：这是故事的最后一个环节，必须生成结局。' : ''}
-  
-  请输出严格的JSON格式（不要包含Markdown代码块标记）：
-  {
-    "title": "新情节标题（简练）",
-    "summary": "画面描述（用于生成配图，需包含环境、人物、光影，100字以内）",
-    "content": "详细剧情文本（300-500字，**必须是新发生的事件**，禁止复述前文。必须以主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角）",
-    "options": ["选项1（具体的下一步行动）", "选项2（具体的下一步行动）"] (如果是结局，留空数组),
-    "isEnding": boolean (${mustEnd ? '必须为 true' : '是否是结局'})
-  }
-  
-  注意：
-  1. 内容必须充实，推动故事发展。
-  2. 选项必须具体，引导后续不同的分支。
-  3. **视角要求：严格限制在主要人物的感知范围内。**`
+    **核心原则**：
+    1. **推进剧情**：必须根据用户的选择，让故事时间向前流动，发生**新的**事件、对话或冲突。**严禁重复、总结或仅仅换说法重述上一段剧情**。
+    2. **因果逻辑**：新情节必须是用户选择的直接后果。
+    3. **沉浸体验**：描写必须具体、生动，有画面感。
+    
+    请输出严格的JSON格式（不要包含Markdown代码块标记，只输出纯JSON字符串）：
+    {
+      "title": "新情节标题（简练）",
+      "summary": "画面描述（用于生成配图，需包含环境、人物、光影，100字以内）",
+      "content": "详细剧情文本（300-500字，**必须是新发生的事件**，禁止复述前文。必须以主要人物的视角（第一人称或第三人称深层视角）进行叙述，禁止使用上帝视角）",
+      "options": ["选项1（具体的下一步行动）", "选项2（具体的下一步行动）"],
+      "isEnding": boolean
+    }
+    
+    注意：
+    - 如果是结局（isEnding=true），options 数组应为空 []。
+    - 内容必须充实，推动故事发展。
+    - 选项必须具体，引导后续不同的分支。
+    - **视角要求：严格限制在主要人物的感知范围内。**`;
 
-  try {
-    const resp = await seed.textToText({ input: prompt, temperature: 0.8, max_tokens: 32000, apiKey })
-    const raw = resp.text || ''
-    let obj: any = {}
+  const userPrompt = `
+    ${originalText ? `参考原文（仅供参考风格和大致走向，不要直接照搬，需根据互动分支进行创作）：\n${originalText.slice(0, 3000)}...\n` : ''}
+    
+    已发生的情节（上下文）：
+    ${context}
+    
+    用户刚才的选择：
+    ${choice}
+    
+    ${isApproachingEnd ? '注意：故事即将结束，请开始收束剧情，为结局做铺垫。' : ''}
+    ${mustEnd ? '注意：这是故事的最后一个环节，必须生成结局 (isEnding: true)。' : ''}`;
+
+  let lastError: any;
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      obj = extractJson(raw)
-    } catch {
-      // If JSON parsing fails, but raw text is long, use raw text as content
-      if (raw.length > 50) {
-        obj = {
-          title: '新剧情',
-          summary: raw.slice(0, 80),
-          content: raw,
-          options: ['继续'],
-          isEnding: false
+      const resp = await seed.textToText({ 
+        input: userPrompt, 
+        system: systemPrompt,
+        temperature: attempt === 0 ? 0.7 : 0.8, // Slightly higher temp for better creativity
+        max_tokens: 32000, 
+        apiKey 
+      })
+      const raw = resp.text || ''
+      let obj: any = {}
+      try {
+        obj = extractJson(raw)
+      } catch {
+        // If JSON parsing fails, but raw text exists, try to use it
+        if (raw.length > 10) {
+          console.warn(`Attempt ${attempt + 1}: JSON parse failed, trying to recover from raw text`)
+          obj = {
+            title: '新剧情',
+            summary: raw.slice(0, 80),
+            content: raw,
+            options: ['继续'],
+            isEnding: false
+          }
+        } else {
+            throw new Error('Empty or invalid response')
         }
       }
-    }
-    
-    // Fallback for content fields
-    let content = obj.content || obj.text || obj.narrative || obj.story || ''
-    
-    // If JSON parsed but content is empty, and raw is different/longer, might be parsing error or bad output
-    if (!content && raw.length > 100) {
-        console.warn('AI returned JSON without content but raw text exists. Using raw.')
-    }
+      
+      // Fallback for content fields
+      let content = obj.content || obj.text || obj.narrative || obj.story || ''
+      
+      // If JSON parsed but content is empty, and raw is different/longer, might be parsing error or bad output
+      if (!content && raw.length > 50) {
+          // Fallback to raw if extracted content is empty but raw is long
+          content = raw
+      }
 
-    if (!content) {
-        console.warn('AI returned JSON without content. Raw:', raw)
-    }
+      if (!content || content.length < 10) {
+        throw new Error('Content too short or empty')
+      }
 
-    return {
-      title: obj.title || '新情节',
-      summary: obj.summary || (content ? content.slice(0, 80) : '剧情继续...'),
-      content: content || '...', 
-      options: Array.isArray(obj.options) && obj.options.length > 0 ? obj.options : (mustEnd ? [] : ['继续']),
-      isEnding: !!obj.isEnding
+      return {
+        title: obj.title || '新情节',
+        summary: obj.summary || (content ? content.slice(0, 80) : '剧情继续...'),
+        content: content, 
+        options: Array.isArray(obj.options) && obj.options.length > 0 ? obj.options : (mustEnd ? [] : ['继续']),
+        isEnding: !!obj.isEnding
+      }
+    } catch (e) {
+      console.error(`Generate next node attempt ${attempt + 1} failed:`, e)
+      lastError = e
+      // If it's the last attempt, fall through to the final error handler
     }
-  } catch (e) {
-    console.error('Generate next node failed:', e)
-    return {
-      title: '未知情节',
-      summary: '迷雾重重...',
-      content: '由于某种原因，前方看不真切...',
-      options: ['尝试回头', '继续前进'],
-      isEnding: false
-    }
+  }
+
+  // Final fallback if all retries fail
+  return {
+    title: '未知情节',
+    summary: '迷雾重重...',
+    content: '由于某种原因，前方看不真切... (生成失败，请重试)',
+    options: ['重试'],
+    isEnding: false
   }
 }
 

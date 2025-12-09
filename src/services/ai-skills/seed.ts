@@ -1,7 +1,7 @@
 import { postJson, HttpOptions } from './http';
 
 //export const SEED_MODEL = 'ep-20251201112513-srd7n';
-export const SEED_MODEL = 'doubao-seed-1-6-flash-250828';
+export const SEED_MODEL = 'doubao-seed-1-6-251015';
 function toContentText(content: any) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) return content.map(p => p && p.type === 'text' ? p.text : '').join('');
@@ -43,17 +43,13 @@ export interface SeedTextToTextOptions extends HttpOptions {
 export async function textToText(options: SeedTextToTextOptions) {
   const { input, system, temperature, max_tokens = 32000, apiKey } = options || {};
   const messages = [];
-  const thinking={
-         type:"disabled"
-     }
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: input });
   const body = {
     model: SEED_MODEL,
     messages,
     temperature,
-    max_tokens,
-    thinking: thinking
+    max_tokens
   };
   const json = await postJson('/chat/completions', body, {}, { apiKey });
   const c = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
