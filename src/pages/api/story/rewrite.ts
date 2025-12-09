@@ -14,12 +14,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const p = String(perspective || 'default')
 
   if (node.povContents && node.povContents[p]) {
-    return res.json({ content: node.povContents[p] })
+    const opts = node.povOptions && node.povOptions[p] ? node.povOptions[p].map(o => o.text) : undefined
+    return res.json({ content: node.povContents[p], options: opts })
   }
 
   try {
-    const text = await rewritePerspective(node.content, node.summary, p, apiKey)
-    return res.json({ content: text })
+    const originalOptions = node.options ? node.options.map(o => o.text) : []
+    const result = await rewritePerspective(node.content, node.summary, p, apiKey, originalOptions)
+    return res.json({ content: result.content, options: result.options })
   } catch (e) {
     return res.status(500).json({ error: String(e) })
   }

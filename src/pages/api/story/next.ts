@@ -15,11 +15,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const currentNode = storyObj.nodes[nodeId]
   if (!currentNode) return res.status(404).json({ error: 'node_not_found' })
 
-  let selectedOption = currentNode.options[optionIndex]
+  let options = currentNode.options
+  if (perspective && perspective !== 'default' && currentNode.povOptions && currentNode.povOptions[perspective]) {
+      options = currentNode.povOptions[perspective]
+  }
+
+  let selectedOption = options[optionIndex]
   if (!selectedOption) {
     const fallback: Option = { text: '继续' }
-    currentNode.options = Array.isArray(currentNode.options) ? currentNode.options : []
-    currentNode.options.push(fallback)
+    // Ensure we are modifying the array in the object
+    if (options === currentNode.options) {
+        currentNode.options = Array.isArray(currentNode.options) ? currentNode.options : []
+        options = currentNode.options
+    }
+    options.push(fallback)
     selectedOption = fallback
   }
 

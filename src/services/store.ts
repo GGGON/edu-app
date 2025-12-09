@@ -13,6 +13,7 @@ export type StoryNode = {
   isEnding?: boolean;
   analyses?: Record<string, { knowledge: { point: string; quote?: string; explanation: string }[]; questions: { question: string; depth: string; answer: string }[] }>; // Cached analysis by perspective
   povContents?: Record<string, string>; // Narrative rewritten by perspective
+  povOptions?: Record<string, Option[]>; // Options rewritten by perspective
 }
 
 export type Story = {

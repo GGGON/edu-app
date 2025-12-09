@@ -283,10 +283,18 @@ export async function splitOriginalToSegments(input: string, count?: number, api
   }
 }
 
-export async function rewritePerspective(content: string, summary: string, perspective: string, apiKey?: string): Promise<string> {
-  if (perspective === 'default') return content
+export async function rewritePerspective(
+  content: string, 
+  summary: string, 
+  perspective: string, 
+  apiKey?: string,
+  originalOptions?: string[]
+): Promise<{ content: string; options?: string[] }> {
+  if (perspective === 'default') return { content, options: originalOptions }
   const pov = perspective === 'default' ? '原文视角' : `${perspective}视角`
-  const prompt = `请将以下文本严格按${pov}进行**深度改写**，在保持原有情节逻辑不变的前提下，焕然一新。
+  const hasOptions = originalOptions && originalOptions.length > 0
+
+  const prompt = `请将以下文本严格按${pov}进行**深度改写**，在保持原有情节逻辑不变的前提下，焕然一新。${hasOptions ? '同时，请根据该角色的处境，重写或生成新的互动选项。' : ''}
   注意：**必须完全沉浸在${perspective}的视角中，通过其感官细节和心理活动重构叙事，禁止出现“原文视角”或“上帝视角”的旁白感。**
   
   要求：
@@ -296,18 +304,33 @@ export async function rewritePerspective(content: string, summary: string, persp
   - 代词与称呼：严格符合该视角（如第一人称用“我”）。
   - 细节体现：**强化该视角的心理活动与主观感受**。
   - 篇幅：300-400字，语言自然流畅。
+  ${hasOptions ? `- 选项生成：基于当前情境，为该角色提供2-4个合理的行动选项（Options）。选项应体现角色的性格和动机。` : ''}
 
   角色：${perspective}
   摘要：${summary}
   原文：${content}
+  ${hasOptions ? `原选项（参考）：${JSON.stringify(originalOptions)}` : ''}
 
-  输出严格JSON：{"content":"改写后的文本"}`
+  输出严格JSON：{"content":"改写后的文本"${hasOptions ? ', "options":["选项1", "选项2"]' : ''}}`
   try {
     const resp = await seed.textToText({ input: prompt, temperature: 0.7, max_tokens: 32000, apiKey })
     const raw = resp.text || ''
-    const obj = extractJson(raw) as { content?: unknown }
-    return String(obj.content ?? content)
+    const obj = extractJson(raw) as { content?: unknown; options?: unknown[] }
+    
+    let resultOptions: string[] | undefined = undefined;
+    if (hasOptions) {
+        if (Array.isArray(obj.options) && obj.options.length > 0) {
+            resultOptions = obj.options.map(String)
+        } else {
+            resultOptions = originalOptions
+        }
+    }
+
+    return {
+        content: String(obj.content ?? content),
+        options: resultOptions
+    }
   } catch {
-    return content
+    return { content, options: originalOptions }
   }
 }

@@ -92,9 +92,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await Promise.all(originalArray.map(async (seg) => {
         await Promise.all(perspectives.map(async (p) => {
           try {
-            const textP = await rewritePerspective(seg.content, seg.summary, p, apiKey)
+            const resultP = await rewritePerspective(seg.content, seg.summary, p, apiKey)
             if (!seg.povContents) seg.povContents = {}
-            seg.povContents[p] = textP
+            seg.povContents[p] = resultP.content
           } catch {}
         }))
       }))

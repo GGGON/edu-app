@@ -19,8 +19,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const text = await rewritePerspective(seg.content, seg.summary, p, apiKey)
-    return res.json({ content: text })
+    const result = await rewritePerspective(seg.content, seg.summary, p, apiKey)
+    return res.json({ content: result.content })
   } catch (e) {
     return res.status(500).json({ error: String(e) })
   }

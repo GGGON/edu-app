@@ -18,6 +18,7 @@ interface StoryNode {
   isEnding?: boolean
   analyses?: Record<string, AnalysisResult>
   povContents?: Record<string, string>
+  povOptions?: Record<string, Option[]>
 }
 
 interface Story {
@@ -346,6 +347,10 @@ export default function Home() {
               const newStory = { ...story }
               if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
               newStory.nodes[currentNodeId].povContents![p] = json.content
+              if (json.options && Array.isArray(json.options)) {
+                 if (!newStory.nodes[currentNodeId].povOptions) newStory.nodes[currentNodeId].povOptions = {}
+                 newStory.nodes[currentNodeId].povOptions![p] = json.options.map((t: string) => ({ text: t }))
+              }
               setStory(newStory)
             }
           } catch {} finally { setPovLoading(false) }
@@ -685,7 +690,10 @@ export default function Home() {
                                   </div>
                                 ) : (
                                   <>
-                                    {(currentNode!.options && currentNode!.options.length > 0 ? currentNode!.options : [{ text: '继续' }]).map((opt, i) => (
+                                    {(() => {
+                                      const opts = (currentNode?.povOptions?.[currentPerspective] || currentNode?.options)
+                                      const optionsToRender = opts && opts.length > 0 ? opts : [{ text: '继续' }]
+                                      return optionsToRender.map((opt, i) => (
                                       <button 
                                         key={i}
                                         onClick={() => handleOptionClick(i)}
@@ -732,7 +740,8 @@ export default function Home() {
                                         </span>
                                         <span style={{ color: '#374151', lineHeight: 1.5 }}>{opt.text}</span>
                                       </button>
-                                    ))}
+                                    ))
+                                    })()}
                                     {currentNode!.isEnding && (
                                       <div style={{ padding: 20, background: '#ecfdf5', color: '#065f46', borderRadius: 12, textAlign: 'center', border: '1px solid #a7f3d0' }}>
                                         <div style={{ fontWeight: 600, marginBottom: 4 }}>✨ 故事结局</div>
