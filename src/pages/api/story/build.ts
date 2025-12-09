@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { randomUUID } from 'crypto'
 import { parseTextToInit, splitOriginalToSegments, analyzeText, rewritePerspective } from '../../../utils/text'
-import { saveStory, StoryNode, Story } from '../../../services/store'
+import { StoryNode, Story } from '../../../services/store'
 import { seedream } from '../../../services/ai-skills'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -11,9 +11,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text' })
 
+  const maxP = typeof maxPerspectives === 'number' ? Math.max(1, Math.floor(maxPerspectives)) : 4
+
   // 1. Parse Text for Initial Scene and Characters
-  const initData = await parseTextToInit(text, apiKey)
-  const maxP = typeof maxPerspectives === 'number' ? Math.max(0, Math.floor(maxPerspectives)) : 0
+  const initData = await parseTextToInit(text, apiKey, maxP)
   const selectedChars = Array.isArray(initData.characters) ? (maxP > 0 ? initData.characters.slice(0, maxP) : initData.characters) : []
   
   const storyId = randomUUID()
@@ -30,18 +31,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     isEnding: false
   }
 
-  // 3. Generate Initial Image (Default Perspective)
+  // 3. Generate Initial Image (Primary Character Perspective)
   // Use style and summary
   const primaryChar = selectedChars[0] || initData.characters[0] || '主角'
   const prompt = `${style || '写实风格'}，${initData.summary}，高清，电影感，${primaryChar}视角`
   try {
-    const r = await seedream.textToImage({ prompt, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+    const r = await seedream.textToImage({ prompt, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
     if (r.urls[0]) {
-      rootNode.images['default'] = r.urls[0]
-      // Assume default is the first character's POV if available
-      if (selectedChars.length > 0) {
-        rootNode.images[selectedChars[0]] = r.urls[0]
-      }
+      rootNode.images[primaryChar] = r.urls[0]
     }
   } catch (e) {
     console.error('Image gen failed', e)
@@ -55,17 +52,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   })
   const imagePool = (async () => {
     if (preGenerateOriginalImages && originalArray.length > 0) {
-      const perspectives = ['default', ...(selectedChars || [])]
+      const perspectives = selectedChars || []
       await Promise.all(originalArray.map(async (seg) => {
         await Promise.all(perspectives.map(async (p) => {
           try {
-            const pov = p === 'default' ? '原文视角' : `${p}视角`
+            const pov = `${p}视角`
             const promptImg = `${style || '写实风格'}，${seg.summary}，${pov}，高清`
-            const r = await seedream.textToImage({ prompt: promptImg, size: '1920x1080', watermark: false, response_format: 'url', n: 1, apiKey })
+            const r = await seedream.textToImage({ prompt: promptImg, size: '2560x1440', watermark: false, response_format: 'url', n: 1, apiKey })
             if (r.urls[0]) {
               seg.images[p] = r.urls[0]
             }
-          } catch {}
+          } catch (e) {
+            console.error('Build image pool failed', e)
+          }
         }))
       }))
     }
@@ -73,26 +72,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const analysisPool = (async () => {
     if (preGenerateOriginalAnalyses && originalArray.length > 0) {
+      const perspectives = selectedChars || []
       await Promise.all(originalArray.map(async (seg) => {
-        try {
-          const ctx = `原文：${text}\n已发生：\n当前视角：原文视角\n当前摘要：${seg.summary}\n当前文本：${seg.content}`
-          const result = await analyzeText(ctx, apiKey)
-          if (!seg.analyses) seg.analyses = {}
-          seg.analyses['default'] = result
-        } catch {}
+        await Promise.all(perspectives.map(async (p) => {
+          try {
+            const ctx = `原文：${text}\n已发生：\n当前视角：${p}\n当前摘要：${seg.summary}\n当前文本：${seg.content}`
+            const result = await analyzeText(ctx, apiKey)
+            if (!seg.analyses) seg.analyses = {}
+            seg.analyses[p] = result
+          } catch {}
+        }))
       }))
     }
   })()
 
   const povPool = (async () => {
     if (preGenerateOriginalPovContents && originalArray.length > 0) {
-      const perspectives = ['default', ...(selectedChars || [])]
+      const perspectives = selectedChars || []
       await Promise.all(originalArray.map(async (seg) => {
         await Promise.all(perspectives.map(async (p) => {
           try {
-            const textP = await rewritePerspective(seg.content, seg.summary, p, apiKey)
+            const resultP = await rewritePerspective(seg.content, seg.summary, p, apiKey)
             if (!seg.povContents) seg.povContents = {}
-            seg.povContents[p] = textP
+            seg.povContents[p] = resultP.content
           } catch {}
         }))
       }))
@@ -112,6 +114,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     originalSegments: originalArray
   }
   
-  saveStory(story)
-  return res.json({ storyId })
+  return res.json({ story })
 }

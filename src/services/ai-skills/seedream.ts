@@ -1,6 +1,6 @@
 import { postJson, HttpOptions } from './http';
 
-export const SEEDREAM_MODEL = 'ep-20251201112706-xp42j';
+export const SEEDREAM_MODEL = 'doubao-seedream-4-5-251128';
 
 export interface SeedreamOptions extends HttpOptions {
   prompt: string;

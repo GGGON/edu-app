@@ -18,6 +18,7 @@ interface StoryNode {
   isEnding?: boolean
   analyses?: Record<string, AnalysisResult>
   povContents?: Record<string, string>
+  povOptions?: Record<string, Option[]>
 }
 
 interface Story {
@@ -64,39 +65,160 @@ export default function Home() {
 
   const styles = ['写实风格', '卡通风格', '水彩风格', '像素风格', '赛博朋克', '国风水墨']
 
+  // Load/Save LocalStorage
   useEffect(() => {
     const k = localStorage.getItem('ark_api_key')
     if (k) setApiKey(k)
+    
+    const savedStory = localStorage.getItem('edu_story_data')
+    const savedNodeId = localStorage.getItem('edu_story_node_id')
+    if (savedStory) {
+      try {
+        const parsed = JSON.parse(savedStory)
+        setStory(parsed)
+        if (savedNodeId) setCurrentNodeId(savedNodeId)
+        
+        // Ensure we don't start in default perspective if characters exist
+        if (parsed.characters && parsed.characters.length > 0) {
+            setCurrentPerspective(parsed.characters[0])
+        }
+      } catch {}
+    }
   }, [])
+
+  useEffect(() => {
+    if (story) {
+      localStorage.setItem('edu_story_data', JSON.stringify(story))
+    } else {
+      localStorage.removeItem('edu_story_data')
+    }
+  }, [story])
+
+  useEffect(() => {
+    if (currentNodeId) {
+      localStorage.setItem('edu_story_node_id', currentNodeId)
+    } else {
+      localStorage.removeItem('edu_story_node_id')
+    }
+  }, [currentNodeId])
 
   useEffect(() => {
     if (!story) { setAnalysis(null); return }
     if (mode === 'interactive') {
       if (!currentNodeId) { setAnalysis(null); return }
       const node = story.nodes[currentNodeId]
+
+      // Auto-fetch image if missing for current perspective
+      if (!node.images[currentPerspective]) {
+          fetch('/api/story/perspective', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ story, nodeId: node.id, perspective: currentPerspective })
+          })
+          .then(async r => { const j = await r.json(); if (j.url) {
+              const newStory = { ...story }
+              newStory.nodes[currentNodeId].images[currentPerspective] = j.url
+              setStory(newStory)
+          }})
+          .catch(() => {})
+      }
+
+      // Auto-fetch POV content if missing for current perspective
+      if (currentPerspective !== 'default' && !(node.povContents && node.povContents[currentPerspective])) {
+          setPovLoading(true)
+          fetch('/api/story/rewrite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ story, nodeId: node.id, perspective: currentPerspective })
+          })
+          .then(async r => {
+             const json = await r.json()
+             if (json.content) {
+                 const newStory = { ...story }
+                 if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
+                 newStory.nodes[currentNodeId].povContents![currentPerspective] = json.content
+                 setStory(newStory)
+             }
+          })
+          .catch(() => {})
+          .finally(() => setPovLoading(false))
+      }
+
+      // Check if analysis already exists in node
+      if (node.analyses && node.analyses[currentPerspective]) {
+        setAnalysis(node.analyses[currentPerspective])
+        return
+      }
+
       setAnalysisLoading(true)
       setAnalysisError('')
       fetch('/api/story/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-        body: JSON.stringify({ storyId: story.id, nodeId: node.id, perspective: currentPerspective })
+        body: JSON.stringify({ story, nodeId: node.id, perspective: currentPerspective })
       })
       .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j?.error || '分析失败'); return j })
-      .then((j) => { setAnalysis(j) })
+      .then((j) => { 
+        setAnalysis(j)
+        // Save analysis to story
+        const newStory = { ...story }
+        if (!newStory.nodes[currentNodeId].analyses) newStory.nodes[currentNodeId].analyses = {}
+        newStory.nodes[currentNodeId].analyses![currentPerspective] = j
+        setStory(newStory)
+      })
       .catch(() => { setAnalysisError('分析失败') })
       .finally(() => { setAnalysisLoading(false) })
     } else {
       const seg = story.originalSegments && story.originalSegments[currentOriginalIndex]
       if (!seg) { setAnalysis(null); return }
+
+      // Auto-fetch POV content for original segment if missing
+      if (currentPerspective !== 'default' && !(seg.povContents && seg.povContents[currentPerspective])) {
+          setPovLoading(true)
+          fetch('/api/story/original-rewrite', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
+              body: JSON.stringify({ story, index: currentOriginalIndex, perspective: currentPerspective })
+          })
+          .then(async r => {
+             const json = await r.json()
+             if (json.content) {
+                 const newStory = { ...story }
+                 if (newStory.originalSegments) {
+                    if (!newStory.originalSegments[currentOriginalIndex].povContents) newStory.originalSegments[currentOriginalIndex].povContents = {}
+                    newStory.originalSegments[currentOriginalIndex].povContents![currentPerspective] = json.content
+                 }
+                 setStory(newStory)
+             }
+          })
+          .catch(() => {})
+          .finally(() => setPovLoading(false))
+      }
+
+      // Check if analysis already exists
+      if (seg.analyses && seg.analyses[currentPerspective]) {
+        setAnalysis(seg.analyses[currentPerspective])
+        return
+      }
+
       setAnalysisLoading(true)
       setAnalysisError('')
       fetch('/api/story/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-        body: JSON.stringify({ storyId: story.id, originalIndex: currentOriginalIndex, perspective: currentPerspective })
+        body: JSON.stringify({ story, originalIndex: currentOriginalIndex, perspective: currentPerspective })
       })
       .then(async r => { const j = await r.json(); if (!r.ok) throw new Error(j?.error || '分析失败'); return j })
-      .then((j) => { setAnalysis(j) })
+      .then((j) => { 
+        setAnalysis(j)
+        // Save analysis to story
+        const newStory = { ...story }
+        if (newStory.originalSegments) {
+          if (!newStory.originalSegments[currentOriginalIndex].analyses) newStory.originalSegments[currentOriginalIndex].analyses = {}
+          newStory.originalSegments[currentOriginalIndex].analyses![currentPerspective] = j
+          setStory(newStory)
+        }
+      })
       .catch(() => { setAnalysisError('分析失败') })
       .finally(() => { setAnalysisLoading(false) })
     }
@@ -120,14 +242,15 @@ export default function Home() {
       const json = await res.json()
       if (!res.ok) throw new Error(json?.error || '构建失败')
       
-      // Fetch full story
-      const getRes = await fetch(`/api/story/get?id=${json.storyId}`)
-      const storyData = await getRes.json()
-      if (!storyData) throw new Error('获取故事失败')
-      
+      const storyData = json.story
       setStory(storyData)
       setCurrentNodeId(storyData.rootId)
-      setCurrentPerspective('default')
+      // Default to first character if available
+      if (storyData.characters && storyData.characters.length > 0) {
+        setCurrentPerspective(storyData.characters[0])
+      } else {
+        setCurrentPerspective('default')
+      }
     } catch (err) {
       const hasMessage = typeof err === 'object' && err && 'message' in err
       const m = hasMessage ? String((err as Record<string, unknown>)['message']) : String(err)
@@ -146,7 +269,7 @@ export default function Home() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
             body: JSON.stringify({ 
-                storyId: story.id, 
+                story, 
                 nodeId: currentNodeId, 
                 optionIndex,
                 perspective: currentPerspective
@@ -155,13 +278,23 @@ export default function Home() {
         const json = await res.json()
         if (!res.ok) throw new Error(json?.error || '生成失败')
         
-        const { nextNode } = json
-        // Update local story state with new node
+        const { nextNode, updatedCurrentNode } = json
+        
         const newStory = { ...story }
-        newStory.nodes[nextNode.id] = nextNode
-        newStory.history.push(nextNode.id)
+        // Update current node with link
+        if (updatedCurrentNode) {
+          newStory.nodes[currentNodeId] = updatedCurrentNode
+        }
+        // Add new node
+        if (nextNode) {
+          newStory.nodes[nextNode.id] = nextNode
+          if (!newStory.history.includes(nextNode.id)) {
+             newStory.history.push(nextNode.id)
+          }
+          setCurrentNodeId(nextNode.id)
+        }
+        
         setStory(newStory)
-        setCurrentNodeId(nextNode.id)
     } catch {
         alert('生成下一情节失败，请重试')
     } finally {
@@ -191,7 +324,7 @@ export default function Home() {
               const res = await fetch('/api/story/perspective', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-                  body: JSON.stringify({ storyId: story.id, nodeId: currentNodeId, perspective: p })
+                  body: JSON.stringify({ story, nodeId: currentNodeId, perspective: p })
               })
               const json = await res.json()
               if (json.url) {
@@ -201,19 +334,27 @@ export default function Home() {
               }
             } catch {}
         }
-        if (!(node.povContents && node.povContents[p])) {
+        if (!(node.povContents && node.povContents[p]) || !(node.povOptions && node.povOptions[p])) {
           try {
             setPovLoading(true)
             const res = await fetch('/api/story/rewrite', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-              body: JSON.stringify({ storyId: story.id, nodeId: currentNodeId, perspective: p })
+              body: JSON.stringify({ story, nodeId: currentNodeId, perspective: p })
             })
             const json = await res.json()
             if (json.content) {
               const newStory = { ...story }
+              newStory.nodes = { ...newStory.nodes }
+              newStory.nodes[currentNodeId] = { ...newStory.nodes[currentNodeId] }
+              
               if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
-              newStory.nodes[currentNodeId].povContents[p] = json.content
+              newStory.nodes[currentNodeId].povContents![p] = json.content
+              
+              if (json.options && Array.isArray(json.options)) {
+                 if (!newStory.nodes[currentNodeId].povOptions) newStory.nodes[currentNodeId].povOptions = {}
+                 newStory.nodes[currentNodeId].povOptions![p] = json.options.map((t: string) => ({ text: t }))
+              }
               setStory(newStory)
             }
           } catch {} finally { setPovLoading(false) }
@@ -228,7 +369,7 @@ export default function Home() {
             const res = await fetch('/api/story/original-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-              body: JSON.stringify({ storyId: story.id, index: currentOriginalIndex, perspective: p })
+              body: JSON.stringify({ story, index: currentOriginalIndex, perspective: p })
             })
             const json = await res.json()
             if (json.url) {
@@ -246,14 +387,14 @@ export default function Home() {
             const res = await fetch('/api/story/original-rewrite', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-              body: JSON.stringify({ storyId: story.id, index: currentOriginalIndex, perspective: p })
+              body: JSON.stringify({ story, index: currentOriginalIndex, perspective: p })
             })
             const json = await res.json()
             if (json.content) {
               const newStory = { ...story }
               if (newStory.originalSegments) {
                 if (!newStory.originalSegments[currentOriginalIndex].povContents) newStory.originalSegments[currentOriginalIndex].povContents = {}
-                newStory.originalSegments[currentOriginalIndex].povContents[p] = json.content
+                newStory.originalSegments[currentOriginalIndex].povContents![p] = json.content
               }
               setStory(newStory)
             }
@@ -272,6 +413,8 @@ export default function Home() {
     setStory(null)
     setCurrentNodeId('')
     setText('')
+    localStorage.removeItem('edu_story_data')
+    localStorage.removeItem('edu_story_node_id')
   }
 
   const currentNode = story?.nodes[currentNodeId]
@@ -291,7 +434,7 @@ export default function Home() {
         fetch('/api/story/original-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-ark-api-key': apiKey },
-          body: JSON.stringify({ storyId: story.id, index: currentOriginalIndex, perspective: currentPerspective })
+          body: JSON.stringify({ story, index: currentOriginalIndex, perspective: currentPerspective })
         }).then(async r => { const j = await r.json(); if (j.url) {
           const newStory = { ...story }
           if (newStory.originalSegments) newStory.originalSegments[currentOriginalIndex].images[currentPerspective] = j.url
@@ -302,7 +445,7 @@ export default function Home() {
   }, [mode, currentOriginalIndex, currentPerspective, story, apiKey])
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f7f7f9', fontFamily: 'sans-serif' }}>
+    <div style={{ minHeight: '100vh' }}>
       <Head>
         <title>互动故事生成器</title>
       </Head>
@@ -313,7 +456,7 @@ export default function Home() {
         </div>
         
         {!story ? (
-          <form onSubmit={onSubmit} style={{ display: 'grid', gap: 24, background: '#fff', padding: 32, borderRadius: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <form onSubmit={onSubmit} style={{ display: 'grid', gap: 24, background: 'rgba(255, 255, 255, 0.6)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.4)', padding: 32, borderRadius: 16, boxShadow: '0 8px 32px rgba(0, 0, 0, 0.05)' }}>
             <div style={{ display: 'grid', gap: 8 }}>
               <label style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>Ark API Key</label>
               <input 
@@ -360,11 +503,11 @@ export default function Home() {
             </div>
 
             <div style={{ display: 'grid', gap: 8 }}>
-                <label style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>最大视角数（不含默认）</label>
+                <label style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>最大视角数</label>
                 <input 
                   type="number"
                   value={maxPerspectives}
-                  onChange={e => setMaxPerspectives(Math.max(0, Math.min(20, Number(e.target.value))))}
+                  onChange={e => setMaxPerspectives(Math.max(1, Math.min(20, Number(e.target.value))))}
                   style={{ padding: 12, borderRadius: 8, border: '1px solid #d1d5db', width: '100%' }}
                 />
             </div>
@@ -431,7 +574,7 @@ export default function Home() {
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#374151' }}>
                   <input type="checkbox" checked={preGenOriginalPov} onChange={e => setPreGenOriginalPov(e.target.checked)} />
-                  预生成视角改写文本（默认 + 所有角色）
+                  预生成视角改写文本（所有选中角色）
                 </label>
               </>
             )}
@@ -476,7 +619,6 @@ export default function Home() {
                         onChange={e => handlePerspectiveChange(e.target.value)}
                         style={{ padding: '8px', borderRadius: 6, border: '1px solid #d1d5db' }}
                     >
-                        <option value="default">原文视角</option>
                         {story.characters.map(c => (
                             <option key={c} value={c}>{c}</option>
                         ))}
@@ -500,7 +642,7 @@ export default function Home() {
 
             {currentNode && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 24, alignItems: 'start' }}>
-                <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'grid', gridTemplateColumns: '1fr 480px', minHeight: 640 }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(20px)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', display: 'grid', gridTemplateColumns: '1fr 480px', minHeight: 640 }}>
                   <div style={{ background: 'linear-gradient(135deg, #1f2937 0%, #000 100%)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 640, width: '100%' }}>
                     {currentImage ? (
                       <Image 
@@ -525,7 +667,7 @@ export default function Home() {
                     <div style={{ flex: 1 }}>
                       <h2 style={{ fontSize: 28, fontWeight: '800', marginBottom: 12, color: '#111827', letterSpacing: '-0.025em' }}>{displayTitle}</h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
-                        <span style={{ fontSize: 12, color: '#4b5563', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 12, padding: '4px 10px', fontWeight: 500 }}>视角：{currentPerspective === 'default' ? '原文视角' : currentPerspective}</span>
+                        <span style={{ fontSize: 12, color: '#4b5563', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 12, padding: '4px 10px', fontWeight: 500 }}>视角：{currentPerspective === 'default' ? '默认' : currentPerspective}</span>
                         {povLoading && (
                           <span style={{ fontSize: 12, color: '#2563eb', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <span style={{ width: 8, height: 8, borderRadius: '50%', border: '2px solid #2563eb', borderTopColor: 'transparent', animation: 'spin 1s linear infinite' }}></span>
@@ -550,9 +692,16 @@ export default function Home() {
                                   <div style={{ padding: 16, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 }}>
                                     正在生成后续剧情...
                                   </div>
+                                ) : povLoading ? (
+                                  <div style={{ padding: 16, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 }}>
+                                    正在生成该角色的专属选项...
+                                  </div>
                                 ) : (
                                   <>
-                                    {(currentNode!.options && currentNode!.options.length > 0 ? currentNode!.options : [{ text: '继续' }]).map((opt, i) => (
+                                    {(() => {
+                                      const opts = (currentNode?.povOptions?.[currentPerspective] || currentNode?.options)
+                                      const optionsToRender = opts && opts.length > 0 ? opts : [{ text: '继续' }]
+                                      return optionsToRender.map((opt, i) => (
                                       <button 
                                         key={i}
                                         onClick={() => handleOptionClick(i)}
@@ -599,7 +748,8 @@ export default function Home() {
                                         </span>
                                         <span style={{ color: '#374151', lineHeight: 1.5 }}>{opt.text}</span>
                                       </button>
-                                    ))}
+                                    ))
+                                    })()}
                                     {currentNode!.isEnding && (
                                       <div style={{ padding: 20, background: '#ecfdf5', color: '#065f46', borderRadius: 12, textAlign: 'center', border: '1px solid #a7f3d0' }}>
                                         <div style={{ fontWeight: 600, marginBottom: 4 }}>✨ 故事结局</div>
@@ -632,7 +782,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div style={{ background: '#fff', borderRadius: 16, padding: 24, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'sticky', top: 24, height: 'fit-content', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(20px)', borderRadius: 16, padding: 24, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'sticky', top: 24, height: 'fit-content', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <h3 style={{ fontSize: 18, fontWeight: '700', color: '#111827' }}>文本分析与思考</h3>
                     <button onClick={() => setAnalysisExpanded(v => !v)} style={{ fontSize: 12, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
