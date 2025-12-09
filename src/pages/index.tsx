@@ -334,7 +334,7 @@ export default function Home() {
               }
             } catch {}
         }
-        if (!(node.povContents && node.povContents[p])) {
+        if (!(node.povContents && node.povContents[p]) || !(node.povOptions && node.povOptions[p])) {
           try {
             setPovLoading(true)
             const res = await fetch('/api/story/rewrite', {
@@ -345,8 +345,12 @@ export default function Home() {
             const json = await res.json()
             if (json.content) {
               const newStory = { ...story }
+              newStory.nodes = { ...newStory.nodes }
+              newStory.nodes[currentNodeId] = { ...newStory.nodes[currentNodeId] }
+              
               if (!newStory.nodes[currentNodeId].povContents) newStory.nodes[currentNodeId].povContents = {}
               newStory.nodes[currentNodeId].povContents![p] = json.content
+              
               if (json.options && Array.isArray(json.options)) {
                  if (!newStory.nodes[currentNodeId].povOptions) newStory.nodes[currentNodeId].povOptions = {}
                  newStory.nodes[currentNodeId].povOptions![p] = json.options.map((t: string) => ({ text: t }))
@@ -687,6 +691,10 @@ export default function Home() {
                                 {generatingNext ? (
                                   <div style={{ padding: 16, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 }}>
                                     正在生成后续剧情...
+                                  </div>
+                                ) : povLoading ? (
+                                  <div style={{ padding: 16, textAlign: 'center', color: '#6b7280', background: '#f9fafb', borderRadius: 8 }}>
+                                    正在生成该角色的专属选项...
                                   </div>
                                 ) : (
                                   <>
